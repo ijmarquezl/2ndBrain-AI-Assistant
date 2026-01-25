@@ -1,5 +1,5 @@
 from core.grafo import EstadoGeneral
-from modulos.bio_sync import obtener_fase_actual, analizar_alineacion_tarea
+from core.bio import obtener_fase_actual, analizar_alineacion_tarea
 from langchain_core.messages import AIMessage
 
 def nodo_bio_sync(state: EstadoGeneral) -> dict:

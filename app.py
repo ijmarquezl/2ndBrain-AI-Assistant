@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
-from modulos.bio_sync import obtener_fase_actual, analizar_alineacion_tarea, sugerir_accion_fase
+from core.bio import obtener_fase_actual, analizar_alineacion_tarea, sugerir_accion_fase
 
 # Cargar variables de entorno
 load_dotenv()
