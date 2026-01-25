@@ -34,7 +34,8 @@ def get_calendar_service():
             # print("✅ Authenticated via st.secrets")
     except (FileNotFoundError, AttributeError, ValueError) as e:
         # It's normal to fail here locally if secrets.toml doesn't exist.
-        # We rely on .env fallback next.
+        # CAUTION: In Cloud, we WANT to see this error if it fails!
+        st.sidebar.error(f"⚠️ Cloud Auth Error: {e}")
         pass
 
     # 2. Try Local File (Fall back)
@@ -48,7 +49,7 @@ def get_calendar_service():
             st.error(f"Error loading local credentials: {e}")
 
     if not creds:
-        # Return None so the app handles it gracefully (e.g. shows "Not configured")
+        st.sidebar.error("❌ No credentials loaded (Cloud or Local). Check secrets.toml.")
         return None
 
     try:
