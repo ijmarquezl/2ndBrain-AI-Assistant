@@ -26,7 +26,14 @@ def get_calendar_service():
             
             # FIX: Handle private_key newlines (often mangled in Streamlit Cloud Secrets)
             if "private_key" in creds_dict:
-                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+                pk = creds_dict["private_key"]
+                # 1. Unescape escaped newlines
+                pk = pk.replace("\\n", "\n")
+                # 2. Strip leading/trailing quotes if they were pasted into the TOML value accidentally
+                pk = pk.strip('"').strip("'")
+                
+                creds_dict["private_key"] = pk
+
             
             creds = service_account.Credentials.from_service_account_info(
                 creds_dict, scopes=SCOPES
@@ -36,6 +43,10 @@ def get_calendar_service():
         # It's normal to fail here locally if secrets.toml doesn't exist.
         # CAUTION: In Cloud, we WANT to see this error if it fails!
         st.sidebar.error(f"⚠️ Cloud Auth Error: {e}")
+        # Debugging Helper: Show start of key to verify format (First 30 chars)
+        if "google_credentials" in st.secrets:
+             pk_debug = st.secrets["google_credentials"].get("private_key", "UNKNOWN")
+             st.sidebar.code(f"Key Start: {pk_debug[:40]}...")
         pass
 
     # 2. Try Local File (Fall back)
