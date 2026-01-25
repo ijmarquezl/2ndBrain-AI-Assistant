@@ -19,11 +19,17 @@ def get_calendar_service():
     try:
         if "google_credentials" in st.secrets:
             creds_dict = dict(st.secrets["google_credentials"])
+            
+            # FIX: Handle private_key newlines (often mangled in Streamlit Cloud Secrets)
+            if "private_key" in creds_dict:
+                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+            
             creds = service_account.Credentials.from_service_account_info(
                 creds_dict, scopes=SCOPES
             )
             # print("✅ Authenticated via st.secrets")
-    except (FileNotFoundError, AttributeError):
+    except (FileNotFoundError, AttributeError, ValueError) as e:
+        # st.error(f"Secrets Error: {e}") # debug
         pass
 
     # 2. Try Local File (Fall back)
