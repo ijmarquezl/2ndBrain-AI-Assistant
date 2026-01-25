@@ -1,6 +1,6 @@
 import os
 from langchain_groq import ChatGroq
-from langchain_ollama import ChatOllama
+# from langchain_ollama import ChatOllama # Removed hard dependency
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,9 +24,13 @@ def get_llm():
             groq_api_key=groq_api_key
         )
     else:
-        # print(f"🦙 Using Local Ollama: {ollama_model}") # Debug info
-        return ChatOllama(
-            model=ollama_model,
-            base_url=ollama_base_url,
-            temperature=0.3
-        )
+        # Lazy import to avoid crashing in cloud environments where Ollama isn't installed
+        try:
+            from langchain_ollama import ChatOllama
+            return ChatOllama(
+                model=ollama_model,
+                base_url=ollama_base_url,
+                temperature=0.3
+            )
+        except ImportError:
+            raise ImportError("Ollama libraries not found. Install 'langchain-ollama' or set GROQ_API_KEY for cloud use.")
