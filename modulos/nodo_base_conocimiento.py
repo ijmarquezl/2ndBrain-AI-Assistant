@@ -1,6 +1,7 @@
 from langchain_community.vectorstores import SupabaseVectorStore
 from core.supabase_extensions import SupabaseVectorStoreSpanish
-from langchain_huggingface import HuggingFaceEmbeddings
+# from langchain_huggingface import HuggingFaceEmbeddings # Moved to core
+from core.embeddings import embedding_fn
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import AIMessage
 from core.grafo import EstadoGeneral
@@ -17,8 +18,8 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 # Inicializar LLM
 llm = get_llm()
 
-# Inicializar Embedding (HuggingFace Local)
-embedding_fn = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+# Inicializar Embedding (Now from Shared Core)
+# embedding_fn points to core.embeddings instance
 
 # Inicializar Supabase Vector Store
 if SUPABASE_URL and SUPABASE_KEY:
