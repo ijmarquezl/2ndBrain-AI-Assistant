@@ -84,7 +84,7 @@ def get_upcoming_events(max_results=5):
                 pass # Local dev without secrets.toml
         
         # VISIBLE DEBUG (Remove later)
-        # st.sidebar.warning(f"🕵️ ID: {calendar_id}")
+        st.sidebar.warning(f"🕵️ ID: {calendar_id}")
 
         now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
         events_result = service.events().list(
@@ -96,7 +96,7 @@ def get_upcoming_events(max_results=5):
         ).execute()
         
         events = events_result.get('items', [])
-        # st.sidebar.info(f"📅 Eventos: {len(events)}")
+        st.sidebar.info(f"📅 Eventos: {len(events)}")
         
         print(f"DEBUG: Using Calendar ID: {calendar_id}")
         print(f"DEBUG: Found {len(events)} events")
