@@ -40,15 +40,16 @@ def get_calendar_service():
                 if not body:
                     st.sidebar.error("❌ Key body is empty after cleaning!")
                 
-                # 4. Reconstruct standard PEM format
-                # Keys usually need to be wrapped at 64 chars, but cryptography lib often handles single line too.
-                # However, safe bet is to let it be a clean block.
-                # Actually, standard PEM requires newlines every 64 chars? 
-                # serialization.load_pem_private_key handles valid base64 blob with headers.
-                
-                new_pk = "-----BEGIN PRIVATE KEY-----\n" + body + "\n-----END PRIVATE KEY-----"
+                # 4. Reconstruct standard PEM format with 64-char folding
+                # Standard PEM requires 64 chars per line.
+                def chunk_string(s, w):
+                    return '\n'.join([s[i:i + w] for i in range(0, len(s), w)])
+
+                fmt_body = chunk_string(body, 64)
+                new_pk = f"-----BEGIN PRIVATE KEY-----\n{fmt_body}\n-----END PRIVATE KEY-----"
                 
                 creds_dict["private_key"] = new_pk
+
 
 
             
