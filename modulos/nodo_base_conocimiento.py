@@ -1,7 +1,7 @@
 from langchain_community.vectorstores import SupabaseVectorStore
 from core.supabase_extensions import SupabaseVectorStoreSpanish
 # from langchain_huggingface import HuggingFaceEmbeddings # Moved to core
-from modulos.shared_embeddings import embedding_fn
+from core.embeddings import embedding_fn
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import AIMessage
 from core.grafo import EstadoGeneral

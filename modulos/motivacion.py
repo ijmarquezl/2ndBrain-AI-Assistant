@@ -1,5 +1,5 @@
 from core.llm import get_llm
-from modulos.shared_embeddings import embedding_fn 
+from core.embeddings import embedding_fn 
 from core.supabase_extensions import SupabaseVectorStoreSpanish
 from supabase.client import create_client, Client
 from langchain_core.prompts import ChatPromptTemplate
