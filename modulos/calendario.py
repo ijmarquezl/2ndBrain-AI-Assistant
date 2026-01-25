@@ -1,8 +1,12 @@
 import os
 import datetime
 import streamlit as st
+from dotenv import load_dotenv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+
+# Load env immediately (for local dev)
+load_dotenv()
 
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
 LOCAL_CREDENTIALS_PATH = "google_credentials.json"
@@ -62,9 +66,21 @@ def get_upcoming_events(max_results=5):
         return []
 
     try:
+        # Service Accounts have their own 'primary' calendar (empty).
+        # We need to query the USER'S shared calendar ID (usually their email).
+        calendar_id = 'primary' # Default fallback
+        
+        # Check Secrets/Env for specific ID
+        if "GOOGLE_CALENDAR_ID" in st.secrets:
+             calendar_id = st.secrets["GOOGLE_CALENDAR_ID"]
+        elif os.getenv("GOOGLE_CALENDAR_ID"):
+             calendar_id = os.getenv("GOOGLE_CALENDAR_ID")
+        
+        # print(f"📅 Querying Calendar ID: {calendar_id}")
+
         now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
         events_result = service.events().list(
-            calendarId='primary', 
+            calendarId=calendar_id, 
             timeMin=now,
             maxResults=max_results, 
             singleEvents=True,
