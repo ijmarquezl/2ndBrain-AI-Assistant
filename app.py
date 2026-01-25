@@ -31,6 +31,8 @@ def main():
     st.sidebar.header("💡 Sabiduría del Día")
     if st.sidebar.button("Nueva Frase"):
         st.cache_data.clear()
+    frase = generar_frase_estoica()
+    st.sidebar.warning(f"_{frase}_")
         
     st.sidebar.markdown("---")
     st.sidebar.header("✍️ Diario Estoico")
@@ -53,13 +55,21 @@ def main():
         if not eventos:
             st.write("No hay eventos próximos.")
         else:
+            from datetime import datetime
             for e in eventos:
                 start = e['start'].get('dateTime', e['start'].get('date'))
-                time_str = start.split("T")[1][:5] if "T" in start else "Día completo"
+                # Parse ISO format nicely
+                try:
+                    if "T" in start:
+                        dt = datetime.fromisoformat(start)
+                        # Format: "25/Oct 17:30"
+                        time_str = dt.strftime("%d/%b %H:%M")
+                    else:
+                        time_str = f"{start} (Todo el día)"
+                except:
+                    time_str = start
+
                 st.markdown(f"**{time_str}** - [{e['summary']}]({e.get('htmlLink', '#')})")
-    
-    frase = generar_frase_estoica()
-    st.sidebar.warning(f"_{frase}_")
     
     # --- Selector de Modo ---
     st.sidebar.header("🛠️ Modo")

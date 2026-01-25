@@ -33,7 +33,8 @@ def get_calendar_service():
             )
             # print("✅ Authenticated via st.secrets")
     except (FileNotFoundError, AttributeError, ValueError) as e:
-        # st.error(f"Secrets Error: {e}") # debug
+        # It's normal to fail here locally if secrets.toml doesn't exist.
+        # We rely on .env fallback next.
         pass
 
     # 2. Try Local File (Fall back)
@@ -71,12 +72,18 @@ def get_upcoming_events(max_results=5):
         calendar_id = 'primary' # Default fallback
         
         # Check Secrets/Env for specific ID
-        if "GOOGLE_CALENDAR_ID" in st.secrets:
-             calendar_id = st.secrets["GOOGLE_CALENDAR_ID"]
-        elif os.getenv("GOOGLE_CALENDAR_ID"):
+        # Check Secrets/Env for specific ID
+        # Priority: Env (Local) -> Secrets (Cloud)
+        if os.getenv("GOOGLE_CALENDAR_ID"):
              calendar_id = os.getenv("GOOGLE_CALENDAR_ID")
+        else:
+            try:
+                if "GOOGLE_CALENDAR_ID" in st.secrets:
+                    calendar_id = st.secrets["GOOGLE_CALENDAR_ID"]
+            except (FileNotFoundError, AttributeError):
+                pass # Local dev without secrets.toml
         
-        # print(f"📅 Querying Calendar ID: {calendar_id}")
+        # print(f"DEBUG: Using Calendar ID: {calendar_id}")
 
         now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
         events_result = service.events().list(
@@ -88,7 +95,58 @@ def get_upcoming_events(max_results=5):
         ).execute()
         
         events = events_result.get('items', [])
+        # print(f"DEBUG: Found {len(events)} events")
         return events
     except Exception as e:
-        # print(f"Calendar API Error: {e}")
+        print(f"❌ Calendar API Error in App: {e}")
         return []
+
+def add_event_to_calendar(summary, start_datetime_iso, duration_minutes=60):
+    """
+    Creates an event in the user's calendar.
+    start_datetime_iso: "YYYY-MM-DDTHH:MM:SS" (or similar ISO format)
+    """
+    service = get_calendar_service()
+    if not service:
+        return False
+
+    try:
+        # Determine Calendar ID
+        calendar_id = 'primary'
+        if os.getenv("GOOGLE_CALENDAR_ID"):
+             calendar_id = os.getenv("GOOGLE_CALENDAR_ID")
+        else:
+            try:
+                if "GOOGLE_CALENDAR_ID" in st.secrets:
+                    calendar_id = st.secrets["GOOGLE_CALENDAR_ID"]
+            except: pass
+
+        # Parse start time
+        # Ensure we have a valid ISO string. If it comes from DB, it might include offset or not.
+        from dateparser import parse
+        dt_start = parse(start_datetime_iso)
+        if not dt_start:
+            print("❌ Invalid Date format")
+            return False
+            
+        dt_end = dt_start + datetime.timedelta(minutes=duration_minutes)
+
+        event_body = {
+            'summary': summary,
+            'start': {
+                'dateTime': dt_start.isoformat(),
+                'timeZone': 'UTC', # Ideally should match user's timezone, simplified for now
+            },
+            'end': {
+                'dateTime': dt_end.isoformat(),
+                'timeZone': 'UTC',
+            },
+        }
+
+        event = service.events().insert(calendarId=calendar_id, body=event_body).execute()
+        print(f"✅ Event created: {event.get('htmlLink')}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Failed to create event: {e}")
+        return False
