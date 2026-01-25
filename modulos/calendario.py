@@ -25,14 +25,31 @@ def get_calendar_service():
             creds_dict = dict(st.secrets["google_credentials"])
             
             # FIX: Handle private_key newlines (often mangled in Streamlit Cloud Secrets)
+            # FIX: Handle private_key newlines (often mangled in Streamlit Cloud Secrets)
             if "private_key" in creds_dict:
                 pk = creds_dict["private_key"]
-                # 1. Unescape escaped newlines
-                pk = pk.replace("\\n", "\n")
-                # 2. Strip leading/trailing quotes if they were pasted into the TOML value accidentally
-                pk = pk.strip('"').strip("'")
                 
-                creds_dict["private_key"] = pk
+                # Aggressive Cleaning Strategy
+                # 1. Remove existing headers/footers to isolate the payload
+                body = pk.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
+                
+                # 2. Remove ALL whitespace (spaces, tabs, newlines, escaped newlines)
+                body = body.replace(" ", "").replace("\n", "").replace("\\n", "").replace("\r", "")
+                
+                # 3. Check if body is empty (error case)
+                if not body:
+                    st.sidebar.error("❌ Key body is empty after cleaning!")
+                
+                # 4. Reconstruct standard PEM format
+                # Keys usually need to be wrapped at 64 chars, but cryptography lib often handles single line too.
+                # However, safe bet is to let it be a clean block.
+                # Actually, standard PEM requires newlines every 64 chars? 
+                # serialization.load_pem_private_key handles valid base64 blob with headers.
+                
+                new_pk = "-----BEGIN PRIVATE KEY-----\n" + body + "\n-----END PRIVATE KEY-----"
+                
+                creds_dict["private_key"] = new_pk
+
 
             
             creds = service_account.Credentials.from_service_account_info(
