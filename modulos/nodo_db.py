@@ -171,6 +171,19 @@ def get_resumen_diario() -> str:
         for t in relevant_tasks:
             status = "✅" if t["estado"] == "completado" else "hz"
             summary += f"- {status} {t['contenido']}\n"
+
+        # 3. Fetch Calendar Events
+        from modulos.calendario import get_upcoming_events
+        try:
+            eventos = get_upcoming_events(5)
+            if eventos:
+                summary += "\n📅 AGENDA GOOGLE CALENDAR (Próximos):\n"
+                for e in eventos:
+                    start = e['start'].get('dateTime', e['start'].get('date'))
+                    # Format simplified
+                    summary += f"- {start}: {e.get('summary', 'Sin título')}\n"
+        except Exception:
+            summary += "\n(No se pudo conectar con Google Calendar)\n"
             
         return summary
 

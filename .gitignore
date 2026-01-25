@@ -7,4 +7,9 @@ venv/
 .DS_Store
 
 # Streamlit
-.streamlit/secrets.toml
+# Binaries
+*.pdf
+*.epub
+*.db
+*.sqlite3
+google_credentials.json

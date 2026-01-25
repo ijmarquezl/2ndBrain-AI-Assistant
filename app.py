@@ -43,6 +43,20 @@ def main():
             "content": f"Quiero hacer mi reflexión del día. Aquí está mi resumen:\n\n{contexto}"
         })
         st.rerun()
+
+    # --- Google Calendar Sidebar ---
+    from modulos.calendario import get_upcoming_events
+    st.sidebar.markdown("---")
+    resumen_agenda = st.sidebar.expander("📅 Agenda (Próximos)", expanded=False)
+    with resumen_agenda:
+        eventos = get_upcoming_events(3)
+        if not eventos:
+            st.write("No hay eventos próximos.")
+        else:
+            for e in eventos:
+                start = e['start'].get('dateTime', e['start'].get('date'))
+                time_str = start.split("T")[1][:5] if "T" in start else "Día completo"
+                st.markdown(f"**{time_str}** - [{e['summary']}]({e.get('htmlLink', '#')})")
     
     frase = generar_frase_estoica()
     st.sidebar.warning(f"_{frase}_")
