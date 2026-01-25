@@ -125,8 +125,20 @@ def nodo_db_saver(state: EstadoGeneral) -> dict:
         
         response = supabase.table("tareas").insert(data).execute()
         
+        # 4. Sync to Google Calendar (if applicable)
+        msg_calendar = ""
+        if fecha_limite:
+             try:
+                 from modulos.calendario import add_event_to_calendar
+                 # Use task content as summary, start time from fecha_limite
+                 success = add_event_to_calendar(contenido, fecha_limite, duration_minutes=60)
+                 if success:
+                     msg_calendar = "\n📅 **Agenda:** Sincronizado con Google Calendar."
+             except Exception as e:
+                 print(f"⚠️ Failed to sync to Calendar: {e}")
+
         return {
-            "messages": [AIMessage(content=f"✅ **Tarea guardada en tu Segundo Cerebro:**\n- {contenido}\n- Deadline: {fecha_limite or 'Ninguno'}\n- Hábito: {'Sí' if es_habito else 'No'}")],
+            "messages": [AIMessage(content=f"✅ **Tarea guardada en tu Segundo Cerebro:**\n- {contenido}\n- Deadline: {fecha_limite or 'Ninguno'}\n- Hábito: {'Sí' if es_habito else 'No'}{msg_calendar}")],
             "tarea_aprobada": False, 
             "iteracion_socratica": 0,
             "motivacion_detectada": ""
