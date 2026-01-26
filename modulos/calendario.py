@@ -36,9 +36,18 @@ def get_calendar_service():
                 # 2. Remove ALL whitespace (spaces, tabs, newlines, escaped newlines)
                 body = body.replace(" ", "").replace("\n", "").replace("\\n", "").replace("\r", "")
                 
-                # 3. Check if body is empty (error case)
+                # 3. Check if body is empty
                 if not body:
                     st.sidebar.error("❌ Key body is empty after cleaning!")
+                
+                # 3.5 Validate Base64 Integrity
+                import base64
+                import binascii
+                try:
+                    # Validate if it's correct base64
+                    base64.b64decode(body) 
+                except binascii.Error as be:
+                    st.sidebar.error(f"❌ Invalid Base64: {be}")
                 
                 # 4. Reconstruct standard PEM format with 64-char folding
                 # Standard PEM requires 64 chars per line.
