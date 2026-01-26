@@ -4,9 +4,30 @@ from langchain_core.messages import AIMessage
 from core.grafo import EstadoGeneral
 from core.llm import get_llm
 import os
+from langchain_core.pydantic_v1 import BaseModel, Field
+from typing import List, Optional
+
+# Definición de Esquemas Pydantic
+class TareaSchema(BaseModel):
+    contenido: str = Field(description="Descripción accionable de la tarea")
+    fecha_limite: Optional[str] = Field(description="YYYY-MM-DD o None si no se definió")
+    hora: Optional[str] = Field(description="HH:MM o None si no es relevante")
+    es_habito: bool = Field(description="True si es una tarea recurrente")
+    frecuencia: Optional[str] = Field(description="Ej: Diario, Semanal, Mensual. None si es única.")
+
+class PlanProyecto(BaseModel):
+    """
+    Estructura para registrar un Nuevo Proyecto con sus tareas planificadas.
+    Invocar SOLO cuando el usuario haya aprobado explícitamente el plan.
+    """
+    nombre_proyecto: str = Field(description="Título corto y claro del proyecto")
+    descripcion: str = Field(description="Resumen del objetivo y contexto")
+    tareas: List[TareaSchema] = Field(description="Lista de tareas iniciales del proyecto")
 
 # Inicializar LLM (usa Factory)
 llm = get_llm()
+# Bind Tools (Esto permite que el LLM decida cuando llamar a la función)
+llm_with_tools = llm.bind_tools([PlanProyecto])
 
 # Prompt Socrático
 from datetime import datetime
@@ -18,55 +39,33 @@ current_year = datetime.now().year
 # Prompt Socrático
 SYSTEM_PROMPT = f"""
 Eres un Filósofo Estoico y Coach de Productividad (secweb 2.0).
-Ayuda al usuario a definir tareas claras, accionables y alineadas con sus valores.
+Ayuda al usuario a definir tareas claras y PROYECTOS estructurados.
 HOY ES: {current_date} (Año {current_year}).
 
-CONTEXTO DE TAREAS ACTUALES (Leído de la Base de Datos):
+CONTEXTO DE TAREAS ACTUALES:
 {{contexto_tareas}}
 
-Tu algoritmo PRINCIPAL (Modo Tareas):
-1. Si el usuario PREGUNTA qué tareas tiene, responde basándote en el CONTEXTO DE TAREAS. NO uses el formato APROBADO.
-2. Si la tarea es vaga, pregunta PARA QUÉ (Values) y CÓMO (Implementation).
-3. Si la tarea está clara, OBLIGATORIAMENTE verifica:
-   - fecha límite ("¿Para cuándo es?") -> Si dice "no sé", asume None.
-   - hora específica ("¿A qué hora?") -> Si es relevante para notificaciones.
-   - recurrencia ("¿Es hábito?") -> Si no dice, asume No.
-4. SOLO cuando tengas estos datos confirmados (o descartados), responde con el formato APROBADO.
+ALGORITMO PRINCIPAL:
+1. Dialoga socráticamente para clarificar objetivos.
+2. Si es una TAREA ÚNICA simple:
+   - Sigue usando el formato de texto clásico:
+     APROBADO: [Tarea]
+     DEADLINE: [YYYY-MM-DD]
+     TIME: [HH:MM]
+     HABIT: [TRUE/FALSE]
 
+3. Si es un PROYECTO (objetivo grande que requiere múltiples pasos):
+   - Ayuda a desglosarlo en tareas pequeñas.
+   - Pregunta plazos (Deadlines) para los hitos clave.
+   - Cuando el usuario diga "SÍ" al plan completo, USA LA HERRAMIENTA `PlanProyecto`.
+   - NO generes texto "APROBADO: ..." para proyectos, usa la Tool Call.
 
----
-MODO JOURNALING (Activado si recibes "CONTEXTO DEL DÍA"):
-Si el mensaje contiene un resumen de actividades/hábitos:
-1. Actúa como un Mentor Reflexivo (Estoico).
-2. Analiza lo que completó (o falló) el usuario.
-3. Genera EXACTAMENTE 3 preguntas profundas (pero breves) para ayudarle a reflexionar.
-   - Ejemplo: "¿Qué obstáculo te impidió beber agua?", "¿Cómo te sentiste al terminar el informe?"
-4. No uses el formato APROBADO/DEADLINE. Simplemente conversa.
----
+MODO JOURNALING:
+- Si recibes contexto del día y el usuario reflexiona, haz 3 preguntas profundas. No crees tareas.
 
-⚠️ REGLAS CRÍTICAS DE VALIDACIÓN (Modo Tareas):
-- NO apruebes si la fecha es ambigua (ej: "cuando pueda"). Pregunta una fecha específica.
-- Si el usuario dice "sin fecha", escribe exactamente: DEADLINE: None
-- Si especifica HORA (ej: "a las 4pm"), extráela en el campo TIME.
-
-Formato de Respuesta Final (SOLO para Tareas):
-APROBADO: [Descripción de la tarea]
-DEADLINE: [YYYY-MM-DD o "None"]
-TIME: [HH:MM o "None"]
-HABIT: [TRUE/FALSE]
-FREQUENCY: [Daily/Weekly/None]
-
-Ejemplo:
-User: "Voy a leer estoicismo"
-Coach: "¿Qué libro y cuándo?"
-User: "Leeré 10 páginas de Meditaciones hoy a las 20:00"
-Coach: APROBADO: Leer 10 páginas de Meditaciones
-DEADLINE: {current_year}-05-20
-TIME: 20:00
-HABIT: TRUE
-FREQUENCY: Daily
-
-NO inventes fechas pasadas. NO uses años anteriores a {current_year}. Si el usuario no dice, pon "None".
+REGLAS:
+- NO inventes fechas.
+- Se conciso y estoico.
 """
 
 prompt_template = ChatPromptTemplate.from_messages([
@@ -74,7 +73,7 @@ prompt_template = ChatPromptTemplate.from_messages([
     ("placeholder", "{messages}")
 ])
 
-chain = prompt_template | llm
+chain = prompt_template | llm_with_tools
 
 from modulos.nodo_db import get_resumen_diario
 
@@ -82,9 +81,7 @@ def nodo_coach_socratico(state: EstadoGeneral) -> dict:
     """
     Nodo que ejecuta la lógica del Coach Socrático.
     """
-    # Invocar cadena con manejo de errores
     try:
-        # Obtener contexto fresco cada vez que el coach piensa
         contexto = get_resumen_diario()
         
         response = chain.invoke({
@@ -92,17 +89,27 @@ def nodo_coach_socratico(state: EstadoGeneral) -> dict:
             "contexto_tareas": contexto
         })
         
+        # 1. Detectar Uso de Herramientas (Proyectos Pydantic)
+        if response.tool_calls:
+            print("🛠️ Tool Call Detected:", response.tool_calls[0]["name"])
+            return {
+                "messages": [response],
+                "tarea_aprobada": True, # Pasamos a nodo_db para que ejecute la tool
+                "motivacion_detectada": "Planificación de Proyecto"
+            }
+
         content = response.content
         
-        # Lógica de aprobación simple basada en el texto
+        # 2. Detectar Formato Clásico (Tareas únicas)
         if "aprobado:" in content.lower():
             return {
                 "messages": [response],
                 "tarea_aprobada": True,
                 "motivacion_detectada": content.replace("APROBADO:", "").replace("aprobado:", "").strip()
             }
+        
+        # 3. Conversación normal
         else:
-            # Incrementamos iteración (si quisiéramos limitar el loop)
             return {
                 "messages": [response],
                 "tarea_aprobada": False,
@@ -110,10 +117,7 @@ def nodo_coach_socratico(state: EstadoGeneral) -> dict:
             }
 
     except Exception as e:
-        # Manejo elegante del error (Rate Limit u otros)
         error_msg = f"⚠️ **El Coach Socrático está meditando (Error API):** {str(e)}"
-        
-        # Retornamos un mensaje de error como si fuera del asistente para que se vea en el chat
         return {
             "messages": [AIMessage(content=error_msg)],
             "tarea_aprobada": False,

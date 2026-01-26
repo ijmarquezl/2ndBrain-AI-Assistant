@@ -13,18 +13,94 @@ def nodo_db_saver(state: EstadoGeneral) -> dict:
     """
     Guarda la tarea aprobada en la base de datos Supabase.
     """
-    # Extraer el mensaje del Asistente (Coach) que contiene "APROBADO:"
-    # Buscamos el último mensaje del AI
+    # Extraer el mensaje del Asistente (Coach)
     mensajes = state["messages"]
-    last_ai_msg = next((m.content for m in reversed(mensajes) if isinstance(m, AIMessage)), "")
+    last_ai_msg = mensajes[-1] # Assuming the last message is from the AI because we just came from Coach Node
     
+    # --- 1. TOOL CALL HANDLER (NUEVOS PROYECTOS) ---
+    if hasattr(last_ai_msg, 'tool_calls') and last_ai_msg.tool_calls:
+        tool_call = last_ai_msg.tool_calls[0]
+        if tool_call["name"] == "PlanProyecto":
+            args = tool_call["args"]
+            nombre_proy = args.get("nombre_proyecto")
+            desc_proy = args.get("descripcion")
+            tareas_lista = args.get("tareas", [])
+            
+            print(f"🚀 Creando Proyecto: {nombre_proy}")
+            
+            try:
+                # A. Crear Proyecto
+                res_proy = supabase.table("proyectos").insert({
+                    "nombre": nombre_proy,
+                    "descripcion": desc_proy,
+                    "estado": "activo"
+                }).execute()
+                
+                if not res_proy.data:
+                    raise Exception("No se pudo crear el proyecto en DB")
+                    
+                proy_id = res_proy.data[0]["id"]
+                
+                # B. Crear Tareas en Lote
+                msg_calendar = []
+                tareas_creadas = 0
+                
+                for t in tareas_lista:
+                    # Preparar datos Supabase
+                    data_t = {
+                        "contenido": t.get("contenido"),
+                        "fecha_limite": t.get("fecha_limite"), # YYYY-MM-DD
+                        "hora_limite": t.get("hora"), # HH:MM
+                        "es_habito": t.get("es_habito", False),
+                        "frecuencia": t.get("frecuencia"),
+                        "proyecto_id": proy_id,
+                        "estado": "pendiente"
+                    }
+                    
+                    # Insertar Tarea
+                    supabase.table("tareas").insert(data_t).execute()
+                    tareas_creadas += 1
+                    
+                    # Sincronizar Calendario (Si tiene fecha)
+                    if data_t["fecha_limite"]:
+                        # Concatenar fecha + hora para el calendario si existe hora
+                        fecha_final_iso = data_t["fecha_limite"]
+                        if data_t["hora_limite"]:
+                             # Simple combine string logic for now
+                             fecha_final_iso = f"{data_t['fecha_limite']}T{data_t['hora_limite']}"
+                        
+                        try:
+                            from modulos.calendario import add_event_to_calendar
+                            # Add project name prefix to calendar event for context
+                            summary_evt = f"[{nombre_proy}] {data_t['contenido']}"
+                            if add_event_to_calendar(summary_evt, fecha_final_iso):
+                                msg_calendar.append(t.get("contenido"))
+                        except Exception:
+                            pass
+
+                # Respuesta final
+                calendar_status = f"\n📅 {len(msg_calendar)} eventos agendados." if msg_calendar else ""
+                return {
+                    "messages": [AIMessage(content=f"✅ **Proyecto Iniciado:** '{nombre_proy}'\n\n🎯 Se han creado {tareas_creadas} tareas y {calendar_status}")],
+                    "tarea_aprobada": False
+                }
+
+            except Exception as e:
+                return {"messages": [AIMessage(content=f"❌ Error creando proyecto: {str(e)}")]}
+
+    # --- 2. LEGACY TEXT PARSER (TAREAS ÚNICAS) ---
+    last_content = last_ai_msg.content if hasattr(last_ai_msg, 'content') else ""
+    if not "APROBADO:" in last_content and not "aprobado:" in last_content:
+         # Should not happen if filtered correctly, but safety check
+         return {"tarea_aprobada": False}
+
     # Parsear el mensaje estructurado
     # Formato esperado:
     # APROBADO: ...
     # DEADLINE: ...
     # HABIT: ...
     
-    lines = last_ai_msg.split('\n')
+    lines = last_content.split('\n')
     contenido = ""
     fecha_limite = None
     hora_limite_val = None
