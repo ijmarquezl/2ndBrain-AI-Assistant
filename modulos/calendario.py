@@ -81,15 +81,12 @@ def get_calendar_service():
                 raise ve
 
             # print("✅ Authenticated via st.secrets")
-    except (FileNotFoundError, AttributeError, ValueError) as e:
-        # It's normal to fail here locally if secrets.toml doesn't exist.
-        # CAUTION: In Cloud, we WANT to see this error if it fails!
-        st.sidebar.error(f"⚠️ Cloud Auth Error: {e}")
-        # Debugging Helper: Show start of key to verify format (First 30 chars)
-        if "google_credentials" in st.secrets:
-             pk_debug = st.secrets["google_credentials"].get("private_key", "UNKNOWN")
-             st.sidebar.code(f"Key Start: {pk_debug[:40]}...")
+    except (FileNotFoundError, AttributeError):
+        # Local dev without secrets.toml: Silently fail here and try local JSON
         pass
+    except ValueError as e:
+        # Real format error in secrets (Cloud)
+        st.sidebar.error(f"⚠️ Cloud Auth Error: {e}")
 
     # 2. Try Local File (Fall back)
     if not creds and os.path.exists(LOCAL_CREDENTIALS_PATH):
@@ -102,7 +99,8 @@ def get_calendar_service():
             st.error(f"Error loading local credentials: {e}")
 
     if not creds:
-        st.sidebar.error("❌ No credentials loaded (Cloud or Local). Check secrets.toml.")
+        # Silent return if nothing configured (don't spam sidebar unless user tries to use it)
+        # or show a small hint if needed, but for now silent is cleaner.
         return None
 
     try:
@@ -125,42 +123,26 @@ def get_upcoming_events(max_results=5):
         # We need to query the USER'S shared calendar ID (usually their email).
         calendar_id = 'primary' # Default fallback
         
-        # Check Secrets/Env for specific ID
-        # Check Secrets/Env for specific ID
-        # Priority: Env (Local) -> Secrets (Cloud)
         # Priority: Env (Local) -> Secrets Top Level -> Secrets Nested -> Default
         if os.getenv("GOOGLE_CALENDAR_ID"):
              calendar_id = os.getenv("GOOGLE_CALENDAR_ID")
         else:
             # Try finding it in various places in st.secrets
-            found = False
             try:
                 # 1. Top Level
                 if "GOOGLE_CALENDAR_ID" in st.secrets:
                     calendar_id = st.secrets["GOOGLE_CALENDAR_ID"]
-                    found = True
                 
                 # 2. Nested in google_credentials (common mistake)
                 elif "google_credentials" in st.secrets:
                     if "GOOGLE_CALENDAR_ID" in st.secrets["google_credentials"]:
                         calendar_id = st.secrets["google_credentials"]["GOOGLE_CALENDAR_ID"]
-                        found = True
                     elif "calendar_id" in st.secrets["google_credentials"]:
                         calendar_id = st.secrets["google_credentials"]["calendar_id"]
-                        found = True
-                
-                # DIAGNOSTIC: Show keys (safe)
-                if not found:
-                    st.sidebar.warning(f"🔍 Keys disponibles: {list(st.secrets.keys())}")
-                    if "google_credentials" in st.secrets:
-                         st.sidebar.warning(f"🔍 Keys en creds: {list(st.secrets['google_credentials'].keys())}")
 
             except (FileNotFoundError, AttributeError):
                 pass 
         
-        # VISIBLE DEBUG (Remove later)
-        st.sidebar.warning(f"🕵️ ID: {calendar_id}")
-
         now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
         events_result = service.events().list(
             calendarId=calendar_id, 
@@ -171,11 +153,10 @@ def get_upcoming_events(max_results=5):
         ).execute()
         
         events = events_result.get('items', [])
-        st.sidebar.info(f"📅 Eventos: {len(events)}")
-        
-        print(f"DEBUG: Using Calendar ID: {calendar_id}")
-        print(f"DEBUG: Found {len(events)} events")
         return events
+    except Exception as e:
+        print(f"❌ Calendar API Error in App: {e}")
+        return []
     except Exception as e:
         print(f"❌ Calendar API Error in App: {e}")
         return []
