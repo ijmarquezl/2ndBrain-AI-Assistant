@@ -70,9 +70,16 @@ def get_calendar_service():
 
 
             
-            creds = service_account.Credentials.from_service_account_info(
-                creds_dict, scopes=SCOPES
-            )
+            try:
+                creds = service_account.Credentials.from_service_account_info(
+                    creds_dict, scopes=SCOPES
+                )
+            except ValueError as ve:
+                ve_str = str(ve)
+                if "extra data" in ve_str or "ASN.1" in ve_str:
+                    st.sidebar.error("❌ Key has TRAILING GARBAGE. Did you paste it twice?")
+                raise ve
+
             # print("✅ Authenticated via st.secrets")
     except (FileNotFoundError, AttributeError, ValueError) as e:
         # It's normal to fail here locally if secrets.toml doesn't exist.
