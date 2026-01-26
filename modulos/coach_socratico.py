@@ -4,7 +4,8 @@ from langchain_core.messages import AIMessage
 from core.grafo import EstadoGeneral
 from core.llm import get_llm
 import os
-from langchain_core.pydantic_v1 import BaseModel, Field
+# from langchain_core.pydantic_v1 import BaseModel, Field # Deprecated/Removed in newer versions
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 # Definición de Esquemas Pydantic
