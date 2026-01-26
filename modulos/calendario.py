@@ -40,24 +40,32 @@ def get_calendar_service():
                 if not body:
                     st.sidebar.error("❌ Key body is empty after cleaning!")
                 
-                # 3.5 Validate Base64 Integrity
+                # 3.5 Validate and Canonicalize Base64
                 import base64
                 import binascii
                 try:
-                    # Validate if it's correct base64
-                    base64.b64decode(body) 
+                    # Validate and clean by round-tripping
+                    key_bytes = base64.b64decode(body) 
+                    # Re-encode to ensure pristine base64 (no hidden chars, correct padding)
+                    clean_body = base64.b64encode(key_bytes).decode('ascii')
                 except binascii.Error as be:
                     st.sidebar.error(f"❌ Invalid Base64: {be}")
+                    clean_body = body # Fallback to original if decode fails, though likely to fail later
                 
                 # 4. Reconstruct standard PEM format with 64-char folding
-                # Standard PEM requires 64 chars per line.
                 def chunk_string(s, w):
                     return '\n'.join([s[i:i + w] for i in range(0, len(s), w)])
 
-                fmt_body = chunk_string(body, 64)
-                new_pk = f"-----BEGIN PRIVATE KEY-----\n{fmt_body}\n-----END PRIVATE KEY-----"
+                fmt_body = chunk_string(clean_body, 64)
+                # Ensure trailing newline after footer
+                new_pk = f"-----BEGIN PRIVATE KEY-----\n{fmt_body}\n-----END PRIVATE KEY-----\n"
                 
                 creds_dict["private_key"] = new_pk
+                # st.sidebar.success("🔑 Key processed and re-encoded.")
+                
+                # Debug end of key
+                # st.sidebar.code(f"Key End: ...{clean_body[-20:]}")
+
 
 
 
