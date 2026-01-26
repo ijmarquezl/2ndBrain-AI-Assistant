@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 # Load env immediately (for local dev)
 load_dotenv()
 
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+SCOPES = ['https://www.googleapis.com/auth/calendar']
 LOCAL_CREDENTIALS_PATH = "google_credentials.json"
 
 def get_calendar_service():
