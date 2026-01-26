@@ -128,14 +128,35 @@ def get_upcoming_events(max_results=5):
         # Check Secrets/Env for specific ID
         # Check Secrets/Env for specific ID
         # Priority: Env (Local) -> Secrets (Cloud)
+        # Priority: Env (Local) -> Secrets Top Level -> Secrets Nested -> Default
         if os.getenv("GOOGLE_CALENDAR_ID"):
              calendar_id = os.getenv("GOOGLE_CALENDAR_ID")
         else:
+            # Try finding it in various places in st.secrets
+            found = False
             try:
+                # 1. Top Level
                 if "GOOGLE_CALENDAR_ID" in st.secrets:
                     calendar_id = st.secrets["GOOGLE_CALENDAR_ID"]
+                    found = True
+                
+                # 2. Nested in google_credentials (common mistake)
+                elif "google_credentials" in st.secrets:
+                    if "GOOGLE_CALENDAR_ID" in st.secrets["google_credentials"]:
+                        calendar_id = st.secrets["google_credentials"]["GOOGLE_CALENDAR_ID"]
+                        found = True
+                    elif "calendar_id" in st.secrets["google_credentials"]:
+                        calendar_id = st.secrets["google_credentials"]["calendar_id"]
+                        found = True
+                
+                # DIAGNOSTIC: Show keys (safe)
+                if not found:
+                    st.sidebar.warning(f"🔍 Keys disponibles: {list(st.secrets.keys())}")
+                    if "google_credentials" in st.secrets:
+                         st.sidebar.warning(f"🔍 Keys en creds: {list(st.secrets['google_credentials'].keys())}")
+
             except (FileNotFoundError, AttributeError):
-                pass # Local dev without secrets.toml
+                pass 
         
         # VISIBLE DEBUG (Remove later)
         st.sidebar.warning(f"🕵️ ID: {calendar_id}")
