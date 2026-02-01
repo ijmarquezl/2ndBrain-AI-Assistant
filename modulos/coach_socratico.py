@@ -17,6 +17,7 @@ class TareaSchema(BaseModel):
     frecuencia: Optional[str] = Field(description="Ej: Diario, Semanal, Mensual. None si es única.")
     dias_semana: List[int] = Field(default=[], description="Lista de días (0=Lunes, 6=Domingo) para hábitos semanales. Ej: [6] para 'todos los domingos'.")
     fecha_fin_habito: Optional[str] = Field(description="YYYY-MM-DD para finalizar el hábito. None si es indefinido.")
+    regla_recurrencia: Optional[str] = Field(description="Regla textual para cálculo preciso en Python. Ej: 'viernes de febrero', 'cada 2 semanas'.")
 
 class PlanProyecto(BaseModel):
     """
@@ -51,19 +52,16 @@ CONTEXTO DE TAREAS ACTUALES:
 ALGORITMO PRINCIPAL:
 1. Dialoga socráticamente para clarificar objetivos.
 2. Si es una TAREA ÚNICA o HÁBITO INDEFINIDO:
-   - Sigue usando el formato de texto clásico:
-     APROBADO: [Tarea]
-     DEADLINE: [YYYY-MM-DD]
-     TIME: [HH:MM]
-     HABIT: [TRUE/FALSE]
-     DAYS: [Lista de ints 0-6, ej: 0,2,4] (Solo si es Hábito Semanal INDEFINIDO)
-     END_DATE: [YYYY-MM-DD] (Opcional, fin del hábito)
+   - Sigue usando el formato de texto clásico.
 
 3. Si es un PROYECTO o RECURENCIA FINITA:
-   - Si el usuario dice "Todos los domingos de Febrero" o "Las próximas 4 semanas":
+   - Si el usuario dice "Todos los viernes de Febrero":
      -> USA LA HERRAMIENTA `PlanProyecto`.
-     -> CALCULA TÚ MISMO las fechas exactas (ej: 2026-02-01, 2026-02-08...) usando la fecha actual.
-     -> Crea una TareaSchema por cada fecha específica.
+     -> NO CALCULES FECHAS TÚ MISMO.
+     -> Crea UNA sola TareaSchema con:
+        - contenido: "..."
+        - regla_recurrencia: "todos los viernes de febrero" (Texto natural claro)
+        - es_habito: False (Python lo expandirá en tareas únicas)
    - Si es un objetivo grande que requiere pasos:
      -> Desglósalo y usa `PlanProyecto`.
 
@@ -73,8 +71,6 @@ MODO JOURNALING:
 REGLAS:
 - NO inventes fechas.
 - Se conciso y estoico.
-- Para "todos los domingos" (indefinido), DAYS=[6], HABIT=TRUE.
-- Para "todos los domingos DE FEBRERO" (finito), crea 4 tareas individuales con fecha exacta.
 """
 
 prompt_template = ChatPromptTemplate.from_messages([

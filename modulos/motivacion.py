@@ -1,6 +1,6 @@
 from core.llm import get_llm
-from core.embeddings import embedding_fn 
-from core.supabase_extensions import SupabaseVectorStoreSpanish
+# from core.embeddings import embedding_fn  <-- Moved inside function
+# from core.supabase_extensions import SupabaseVectorStoreSpanish <-- Moved inside function
 from supabase.client import create_client, Client
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -18,6 +18,10 @@ def generar_frase_estoica():
     Generates a stoic/motivational quote using the RAG knowledge base.
     """
     try:
+        # Lazy Import to avoid circular dependencies (core.embeddings <-> motivacion <-> app)
+        from core.embeddings import embedding_fn 
+        from core.supabase_extensions import SupabaseVectorStoreSpanish
+        
         # 1. Setup Retrieval
         llm = get_llm()
         

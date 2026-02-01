@@ -46,39 +46,94 @@ def nodo_db_saver(state: EstadoGeneral) -> dict:
                 tareas_creadas = 0
                 
                 for t in tareas_lista:
-                    # Preparar datos Supabase
-                    data_t = {
-                        "contenido": t.get("contenido"),
-                        "fecha_limite": t.get("fecha_limite"), # YYYY-MM-DD
-                        "hora_limite": t.get("hora"), # HH:MM
-                        "es_habito": t.get("es_habito", False),
-                        "frecuencia": t.get("frecuencia"),
-                        "dias_semana": t.get("dias_semana", []),
-                        "fecha_fin_habito": t.get("fecha_fin_habito"),
-                        "proyecto_id": proy_id,
-                        "estado": "pendiente"
-                    }
+                    recurrencia = t.get("regla_recurrencia")
+                    base_content = t.get("contenido")
+                    base_hora = t.get("hora")
                     
-                    # Insertar Tarea
-                    supabase.table("tareas").insert(data_t).execute()
-                    tareas_creadas += 1
+                    # Lista de tareas a insertar (1 o muchas)
+                    tareas_para_insertar = []
                     
-                    # Sincronizar Calendario (Si tiene fecha)
-                    if data_t["fecha_limite"]:
-                        # Concatenar fecha + hora para el calendario si existe hora
-                        fecha_final_iso = data_t["fecha_limite"]
-                        if data_t["hora_limite"]:
-                             # Simple combine string logic for now
-                             fecha_final_iso = f"{data_t['fecha_limite']}T{data_t['hora_limite']}"
-                        
+                    if recurrencia:
+                        # 1. Expandir Recurrencia usando LLM (Date Calculator)
+                        print(f"🔄 Expandiendo recurrencia: {recurrencia}")
                         try:
-                            from modulos.calendario import add_event_to_calendar
-                            # Add project name prefix to calendar event for context
-                            summary_evt = f"[{nombre_proy}] {data_t['contenido']}"
-                            if add_event_to_calendar(summary_evt, fecha_final_iso):
-                                msg_calendar.append(t.get("contenido"))
-                        except Exception:
-                            pass
+                            from core.llm import get_llm
+                            from langchain_core.prompts import ChatPromptTemplate
+                            from langchain_core.output_parsers import JsonOutputParser
+                            
+                            # Mini-Chain para calcular fechas
+                            calc_llm = get_llm()
+                            calc_prompt = ChatPromptTemplate.from_template("""
+                            Eres una calculadora de fechas precisa (Python datetime expert).
+                            HOY: {current_date}
+                            
+                            Instrucción: Genera una lista JSON con las fechas EXACTAS (YYYY-MM-DD) para la siguiente regla: "{rule}".
+                            Considera el año actual y verifica el calendario.
+                            
+                            Ejemplo Input: "Todos los viernes de febrero 2026"
+                            Ejemplo Output: {{ "fechas": ["2026-02-06", "2026-02-13", "2026-02-20", "2026-02-27"] }}
+                            
+                            Responde SOLO JSON válido.
+                            """)
+                            calc_chain = calc_prompt | calc_llm | JsonOutputParser()
+                            
+                            from datetime import datetime
+                            res_fechas = calc_chain.invoke({
+                                "rule": recurrencia,
+                                "current_date": datetime.now().strftime("%Y-%m-%d")
+                            })
+                            fechas_expandidas = res_fechas.get("fechas", [])
+                            
+                            # Crear una tarea por fecha
+                            for f_str in fechas_expandidas:
+                                t_copy = t.copy()
+                                t_copy["fecha_limite"] = f_str # Override date
+                                t_copy["es_habito"] = False # Expanded habits become single tasks
+                                t_copy["frecuencia"] = None
+                                t_copy["dias_semana"] = [] 
+                                t_copy["fecha_fin_habito"] = None
+                                t_copy["regla_recurrencia"] = None # Clear rule in child
+                                tareas_para_insertar.append(t_copy)
+                                
+                        except Exception as e:
+                            print(f"⚠️ Falló expansión recurrencia: {e}. Usando tarea base.")
+                            tareas_para_insertar.append(t)
+                    else:
+                        tareas_para_insertar.append(t)
+                        
+                    # Insertar Expandidas
+                    for task_data in tareas_para_insertar:
+                        data_t = {
+                            "contenido": task_data.get("contenido"),
+                            "fecha_limite": task_data.get("fecha_limite"), # YYYY-MM-DD
+                            "hora_limite": task_data.get("hora"), # HH:MM
+                            "es_habito": task_data.get("es_habito", False),
+                            "frecuencia": task_data.get("frecuencia"),
+                            "dias_semana": task_data.get("dias_semana", []),
+                            "fecha_fin_habito": task_data.get("fecha_fin_habito"),
+                            "proyecto_id": proy_id,
+                            "estado": "pendiente"
+                        }
+                    
+                        # Insertar Tarea
+                        supabase.table("tareas").insert(data_t).execute()
+                        tareas_creadas += 1
+                        
+                        # Sincronizar Calendario (Si tiene fecha) -- COPIED LOGIC
+                        if data_t["fecha_limite"]:
+                            fecha_final_iso = data_t["fecha_limite"]
+                            if data_t["hora_limite"]:
+                                 fecha_final_iso = f"{data_t['fecha_limite']}T{data_t['hora_limite']}"
+                            
+                            try:
+                                from modulos.calendario import add_event_to_calendar
+                                summary_evt = f"[{nombre_proy}] {data_t['contenido']}"
+                                if add_event_to_calendar(summary_evt, fecha_final_iso):
+                                    # Solo agregar al msg si no estaba (para no spammear)
+                                    if data_t['contenido'] not in msg_calendar: 
+                                        msg_calendar.append(data_t['contenido'])
+                            except Exception:
+                                pass
 
                 # Respuesta final
                 calendar_status = f"\n📅 {len(msg_calendar)} eventos agendados." if msg_calendar else ""
