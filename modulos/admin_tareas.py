@@ -128,26 +128,91 @@ def render_admin_tareas():
              st.success("Tarea reactivada!")
              st.rerun()
 
-    # 6. Manual Debugging / Add (Optional)
-    with st.expander("🛠️ Debug / Añadir Manual"):
-        with st.form("manual_add"):
-            desc = st.text_input("Descripción")
-            c_h = st.checkbox("Es Hábito")
-            hora = st.time_input("Hora Límite", value=None)
-            days = st.multiselect("Días (Solo Hábitos)", ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"])
+    # 6. Edit / Add Form
+    st.divider()
+    
+    # Decide what to show: Edit (if selected) or Add New
+    if selected_idx is not None:
+        st.subheader(f"✏️ Editar Tarea #{task_id}")
+        
+        # Pre-fill values
+        current_desc = selected_row["contenido"]
+        current_time = None
+        if selected_row["hora_limite"]:
+            try:
+                current_time = datetime.strptime(selected_row["hora_limite"], "%H:%M:%S").time()
+            except:
+                pass
+        
+        current_habit = bool(selected_row["es_habito"])
+        
+        # Parse days
+        current_days_indices = []
+        if isinstance(selected_row["dias_semana"], list):
+            current_days_indices = selected_row["dias_semana"]
             
-            submitted = st.form_submit_button("Crear")
-            if submitted and desc:
-                days_map_inv = {"Lun":0, "Mar":1, "Mié":2, "Jue":3, "Vie":4, "Sáb":5, "Dom":6}
-                dias_list = [days_map_inv[d] for d in days] if c_h else []
+        days_options = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+        days_map_inv = {"Lun":0, "Mar":1, "Mié":2, "Jue":3, "Vie":4, "Sáb":5, "Dom":6}
+        default_days = [days_options[i] for i in current_days_indices if isinstance(i, int) and 0 <= i <= 6]
+
+        with st.form("edit_form"):
+            new_desc = st.text_input("Descripción", value=current_desc)
+            col_a, col_b = st.columns(2)
+            new_time = col_a.time_input("Hora Límite", value=current_time)
+            new_habit = col_b.checkbox("Es Hábito", value=current_habit)
+            
+            new_days = st.multiselect("Días (Solo Hábitos)", days_options, default=default_days)
+            
+            # End Date
+            current_end_date = None
+            if selected_row["fecha_fin_habito"]:
+                try:
+                    current_end_date = datetime.strptime(selected_row["fecha_fin_habito"], "%Y-%m-%d").date()
+                except:
+                    pass
+            new_end_date = st.date_input("Fecha Fin (Opcional)", value=current_end_date)
+            
+            if st.form_submit_button("� Guardar Cambios"):
+                # Prepare Update Data
+                dias_list = [days_map_inv[d] for d in new_days] if new_habit else []
                 
-                data = {
-                    "contenido": desc,
-                    "es_habito": c_h,
-                    "hora_limite": hora.strftime("%H:%M:%S") if hora else None,
+                update_data = {
+                    "contenido": new_desc,
+                    "hora_limite": new_time.strftime("%H:%M:%S") if new_time else None,
+                    "es_habito": new_habit,
                     "dias_semana": dias_list,
-                    "estado": "pendiente"
+                    "fecha_fin_habito": new_end_date.strftime("%Y-%m-%d") if new_end_date else None
                 }
-                supabase.table("tareas").insert(data).execute()
-                st.success("Creado!")
+                
+                supabase.table("tareas").update(update_data).eq("id", task_id).execute()
+                st.success("Tarea actualizada correctamente.")
                 st.rerun()
+                
+        if st.button("Cancelar Edición"):
+            st.rerun()
+
+    else:
+        with st.expander("➕ Añadir Nueva Tarea Manual"):
+            with st.form("manual_add"):
+                desc = st.text_input("Descripción")
+                c_h = st.checkbox("Es Hábito")
+                hora = st.time_input("Hora Límite", value=None)
+                days = st.multiselect("Días (Solo Hábitos)", ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"])
+                end_date_add = st.date_input("Fecha Fin (Opcional)", value=None)
+                
+                submitted = st.form_submit_button("Crear")
+                if submitted and desc:
+                    days_map_inv = {"Lun":0, "Mar":1, "Mié":2, "Jue":3, "Vie":4, "Sáb":5, "Dom":6}
+                    dias_list = [days_map_inv[d] for d in days] if c_h else []
+                    
+                    data = {
+                        "contenido": desc,
+                        "es_habito": c_h,
+                        "hora_limite": hora.strftime("%H:%M:%S") if hora else None,
+                        "dias_semana": dias_list,
+                        "fecha_fin_habito": end_date_add.strftime("%Y-%m-%d") if end_date_add else None,
+                        "estado": "pendiente"
+                    }
+                    supabase.table("tareas").insert(data).execute()
+                    st.success("Creado!")
+                    st.rerun()
