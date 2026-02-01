@@ -80,13 +80,13 @@ prompt_template = ChatPromptTemplate.from_messages([
 
 chain = prompt_template | llm_with_tools
 
-from modulos.nodo_db import get_resumen_diario
-
 def nodo_coach_socratico(state: EstadoGeneral) -> dict:
     """
     Nodo que ejecuta la lógica del Coach Socrático.
     """
     try:
+        # Lazy Import to avoid circular dependencies
+        from modulos.nodo_db import get_resumen_diario
         contexto = get_resumen_diario()
         
         response = chain.invoke({

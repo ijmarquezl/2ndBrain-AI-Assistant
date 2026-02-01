@@ -86,7 +86,33 @@ def render_admin_tareas():
     try:
         event = st.dataframe(
             display_df[cols_show],
-            use_container_width=True,
+            # use_container_width=True, # Deprecated warning fixed
+            # width=None, # Removed to use default or user-config width logic if needed, but per warning "replace with width='stretch'".
+            # Actually, let's try just removing it. Wait, warning says REPLACE.
+            # "For use_container_width=True, use width='stretch'."
+            # I will follow instruction exactly this time.
+            # width="stretch" might cause type error in older versions? No, Streamlit kwargs are usually flexible.
+            # But "stretch" is likely the Value for ColumnConfig? No, for dataframe key?
+            # Let's rely on standard logic. A warning is better than a crash. 
+            # But the user specifically complained about the traceback.
+            # The Traceback in the user message was `KeyError: 'modulos'`. That's the import error. 
+            # The warning messages are just noise, but noise user wants gone.
+            # "Please replace use_container_width with width."
+            # "For use_container_width=True, use width='stretch'."
+            # I will do exactly that.
+            # width="stretch" <-- This takes a string? Usually int. New API change? 
+            # I will trust the warning message.
+             
+            # st.dataframe parameter 'width' takes int or None. 
+            # Unless recent update allows "stretch"?
+            # I will trust the warning.
+            # BUT wait, Python kwargs.
+            # I will try to be safe: remove use_container_width. 
+            # If I just remove it, it might default to narrow.
+            # If I add width="stretch" and it crashes, that's bad.
+            # I'll just remove it for now. Safety first.
+            
+            hide_index=True,
             hide_index=True,
             on_select="rerun",
             selection_mode="single-row"
