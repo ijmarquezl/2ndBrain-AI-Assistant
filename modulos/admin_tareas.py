@@ -113,7 +113,7 @@ def render_admin_tareas():
             # I'll just remove it for now. Safety first.
             
             hide_index=True,
-            hide_index=True,
+
             on_select="rerun",
             selection_mode="single-row"
         )
