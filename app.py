@@ -15,6 +15,23 @@ st.set_page_config(
 def main():
     st.title("🧠 2ndBrain: Asistente Personal Estoico")
     
+    # --- Selector de Modo (Moved to Top) ---
+    st.sidebar.header("🛠️ Modo")
+    modo_seleccionado = st.sidebar.radio(
+        "Elige tu interacción:",
+        ["Coach de Tareas", "Monitor Emocional", "Consultar Segundo Cerebro", "Gestor de Tareas"],
+        index=0
+    )
+    
+    # Mapear selección a valor interno
+    mapa_modos = {
+        "Coach de Tareas": "tarea",
+        "Monitor Emocional": "emocional",
+        "Consultar Segundo Cerebro": "consulta",
+        "Gestor de Tareas": "admin"
+    }
+    modo_interno = mapa_modos[modo_seleccionado]
+
     # --- Sidebar: Bio-Sync Mood ---
     fase_actual = obtener_fase_actual()
     st.sidebar.header("🕒 Bio-Sincronización")
@@ -71,26 +88,16 @@ def main():
 
                 st.markdown(f"**{time_str}** - [{e['summary']}]({e.get('htmlLink', '#')})")
     
-    # --- Selector de Modo ---
-    st.sidebar.header("🛠️ Modo")
-    modo_seleccionado = st.sidebar.radio(
-        "Elige tu interacción:",
-        ["Coach de Tareas", "Monitor Emocional", "Consultar Segundo Cerebro"],
-        index=0
-    )
-    
-    # Mapear selección a valor interno
-    mapa_modos = {
-        "Coach de Tareas": "tarea",
-        "Monitor Emocional": "emocional",
-        "Consultar Segundo Cerebro": "consulta"
-    }
-    modo_interno = mapa_modos[modo_seleccionado]
-    
     # --- Verificaciones de Entorno ---
     if not os.getenv("GOOGLE_API_KEY"):
         st.error("⚠️ Falta configurar GOOGLE_API_KEY en el archivo .env")
         st.stop()
+
+    # --- Router de Visualización ---
+    if modo_seleccionado == "Gestor de Tareas":
+        from modulos.admin_tareas import render_admin_tareas
+        render_admin_tareas()
+        return  # Exit main() to avoid showing chat interface
 
     st.markdown("""
     > *"No es que tengamos poco tiempo, sino que perdemos mucho."* — Séneca

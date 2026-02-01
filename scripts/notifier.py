@@ -61,6 +61,8 @@ async def check_and_notify():
         ultimo_rec = task.get("ultimo_recordatorio") # ISO timestamp
         es_habito = task.get("es_habito")
         fecha_limite = task.get("fecha_limite") # ISO timestamp
+        dias_semana = task.get("dias_semana") # JSON list [0, 6]
+        fecha_fin_habito = task.get("fecha_fin_habito") # YYYY-MM-DD
 
         # Skip if no specific time set
         if not hora_limite:
@@ -80,9 +82,24 @@ async def check_and_notify():
         # Check Eligibility
         should_notify = False
         
-        # Scenario A: Habit (runs every day if 'daily' or implicitly if habit=true)
+        # Scenario A: Habit
         if es_habito:
-             should_notify = True
+             # 1. Check End Date
+             if fecha_fin_habito and today_str > fecha_fin_habito:
+                 should_notify = False # Expired habit
+             
+             # 2. Check Days of Week
+             elif dias_semana and isinstance(dias_semana, list) and len(dias_semana) > 0:
+                 # Python weekday: Mon=0, Sun=6
+                 current_weekday = now.weekday()
+                 if current_weekday in dias_semana:
+                     should_notify = True
+                 else:
+                     should_notify = False
+             
+             # 3. Legacy/Default: Daily if no days specified
+             else:
+                 should_notify = True
         
         # Scenario B: Specific Deadline Today
         elif fecha_limite:
@@ -97,6 +114,8 @@ async def check_and_notify():
             # If now "16:05" >= limit "16:00" -> Notify
             # We add a buffer? User said "At that time". 
             # If script runs every 10 mins, sending at 16:05 for 16:00 is fine.
+            # Avoid re-notifying if too much time passed? (Optional: e.g. limit to within 30m)
+            
             if current_time_str >= hora_limite:
                 msg = f"⏰ **Recordatorio 2ndBrain**\n\nEs hora de: **{contenido}**\n({hora_limite})"
                 await send_telegram_message(msg)

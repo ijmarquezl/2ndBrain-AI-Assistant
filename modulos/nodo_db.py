@@ -53,6 +53,8 @@ def nodo_db_saver(state: EstadoGeneral) -> dict:
                         "hora_limite": t.get("hora"), # HH:MM
                         "es_habito": t.get("es_habito", False),
                         "frecuencia": t.get("frecuencia"),
+                        "dias_semana": t.get("dias_semana", []),
+                        "fecha_fin_habito": t.get("fecha_fin_habito"),
                         "proyecto_id": proy_id,
                         "estado": "pendiente"
                     }
@@ -99,6 +101,8 @@ def nodo_db_saver(state: EstadoGeneral) -> dict:
     # APROBADO: ...
     # DEADLINE: ...
     # HABIT: ...
+    # DAYS: ...
+    # END_DATE: ...
     
     lines = last_content.split('\n')
     contenido = ""
@@ -106,6 +110,8 @@ def nodo_db_saver(state: EstadoGeneral) -> dict:
     hora_limite_val = None
     es_habito = False
     frecuencia = None
+    dias_semana = []
+    fecha_fin_habito = None
     
     for line in lines:
         if "APROBADO:" in line:
@@ -132,6 +138,21 @@ def nodo_db_saver(state: EstadoGeneral) -> dict:
                         "iteracion_socratica": state.get("iteracion_socratica", 0) + 1
                     }
                 fecha_limite = None
+        
+        elif "DAYS:" in line:
+            try:
+                days_str = line.replace("DAYS:", "").strip(" []") # Remove brackets and label
+                if days_str:
+                    dias_semana = [int(x.strip()) for x in days_str.split(",") if x.strip().isdigit()]
+            except:
+                pass
+
+        elif "END_DATE:" in line:
+             ed_str = line.replace("END_DATE:", "").strip()
+             if ed_str and not ed_str.lower().startswith("none"):
+                 dt_ed = dateparser.parse(ed_str, settings={'PREFER_DATES_FROM': 'future'})
+                 if dt_ed:
+                     fecha_fin_habito = dt_ed.strftime("%Y-%m-%d")
 
         elif "TIME:" in line:
             t_str = line.replace("TIME:", "").strip()
@@ -196,6 +217,8 @@ def nodo_db_saver(state: EstadoGeneral) -> dict:
             "fecha_limite": fecha_limite,
             "es_habito": es_habito,
             "frecuencia": frecuencia,
+            "dias_semana": dias_semana, # NEW
+            "fecha_fin_habito": fecha_fin_habito, # NEW
             "hora_limite": hora_limite_val # SAVE SEPARATE TIME COLUMN
         }
         

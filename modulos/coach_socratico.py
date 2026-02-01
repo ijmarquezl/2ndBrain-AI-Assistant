@@ -15,6 +15,8 @@ class TareaSchema(BaseModel):
     hora: Optional[str] = Field(description="HH:MM o None si no es relevante")
     es_habito: bool = Field(description="True si es una tarea recurrente")
     frecuencia: Optional[str] = Field(description="Ej: Diario, Semanal, Mensual. None si es única.")
+    dias_semana: List[int] = Field(default=[], description="Lista de días (0=Lunes, 6=Domingo) para hábitos semanales. Ej: [6] para 'todos los domingos'.")
+    fecha_fin_habito: Optional[str] = Field(description="YYYY-MM-DD para finalizar el hábito. None si es indefinido.")
 
 class PlanProyecto(BaseModel):
     """
@@ -48,12 +50,14 @@ CONTEXTO DE TAREAS ACTUALES:
 
 ALGORITMO PRINCIPAL:
 1. Dialoga socráticamente para clarificar objetivos.
-2. Si es una TAREA ÚNICA simple:
+2. Si es una TAREA ÚNICA o HÁBITO simple:
    - Sigue usando el formato de texto clásico:
      APROBADO: [Tarea]
      DEADLINE: [YYYY-MM-DD]
      TIME: [HH:MM]
      HABIT: [TRUE/FALSE]
+     DAYS: [Lista de ints 0-6, ej: 0,2,4] (Solo si es Hábito Semanal)
+     END_DATE: [YYYY-MM-DD] (Opcional, fin del hábito)
 
 3. Si es un PROYECTO (objetivo grande que requiere múltiples pasos):
    - Ayuda a desglosarlo en tareas pequeñas.
@@ -67,6 +71,8 @@ MODO JOURNALING:
 REGLAS:
 - NO inventes fechas.
 - Se conciso y estoico.
+- Para "todos los domingos", DAYS=[6], HABIT=TRUE.
+- Para "hasta el final de mayo", calcula la fecha y pon END_DATE.
 """
 
 prompt_template = ChatPromptTemplate.from_messages([
