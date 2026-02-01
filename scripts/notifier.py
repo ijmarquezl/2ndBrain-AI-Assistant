@@ -31,13 +31,28 @@ async def send_telegram_message(text: str):
     except Exception as e:
         logging.error(f"Failed to send Telegram message: {e}")
 
+from zoneinfo import ZoneInfo
+
+# ...
+
 async def check_and_notify():
     logging.info("Checking for pending tasks...")
     
-    # Current Time info
-    now = datetime.now()
+    # Define Target Timezone (Default to user's location: Mexico City)
+    # Ideally set USER_TIMEZONE in .env
+    user_tz_str = os.getenv("USER_TIMEZONE", "America/Mexico_City")
+    try:
+        user_tz = ZoneInfo(user_tz_str)
+    except:
+        logging.warning(f"Timezone '{user_tz_str}' not found, defaulting to Local/UTC")
+        user_tz = None
+
+    # Current Time in User's Timezone
+    now = datetime.now(user_tz)
     current_time_str = now.strftime("%H:%M:%S")
     today_str = now.strftime("%Y-%m-%d")
+    
+    logging.info(f"🕒 Time Check: {today_str} {current_time_str} (TZ: {user_tz_str})")
 
     # 1. Fetch Tasks that have a DEADLINE (Date) = Today OR are HABITS (Daily)
     # AND have a specified TIME LIMIT (hora_limite)
