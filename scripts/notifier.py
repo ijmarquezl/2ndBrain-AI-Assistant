@@ -38,29 +38,21 @@ from zoneinfo import ZoneInfo
 async def check_and_notify():
     logging.info("Checking for pending tasks...")
     
-    # Define Target Timezone (Default to user's location: Mexico City)
-    # Ideally set USER_TIMEZONE in .env
+    # Define Target Timezone
     user_tz_str = os.getenv("USER_TIMEZONE", "America/Mexico_City")
     try:
         user_tz = ZoneInfo(user_tz_str)
-    except:
-        logging.warning(f"Timezone '{user_tz_str}' not found, defaulting to Local/UTC")
-        user_tz = None
+    except Exception as e:
+        logging.error(f"Timezone '{user_tz_str}' invalid: {e}. Defaulting to UTC.")
+        user_tz = ZoneInfo("UTC")
 
     # Current Time in User's Timezone
     now = datetime.now(user_tz)
-    current_time_str = now.strftime("%H:%M:%S")
     today_str = now.strftime("%Y-%m-%d")
     
-    logging.info(f"🕒 Time Check: {today_str} {current_time_str} (TZ: {user_tz_str})")
+    logging.info(f"🕒 Time Check: {now} (TZ: {user_tz_str})")
 
-    # 1. Fetch Tasks that have a DEADLINE (Date) = Today OR are HABITS (Daily)
-    # AND have a specified TIME LIMIT (hora_limite)
-    # AND haven't been notified today.
-    
-    # Note: Supabase/PostgREST filtering on 'time' columns can be tricky with simple clients.
-    # We'll fetch active tasks and filter in Python for robustness.
-    
+    # 1. Fetch active tasks
     try:
         # Get pending tasks or habits
         response = supabase.table("tareas").select("*").in_("estado", ["pendiente", "aprobado"]).execute()
@@ -72,38 +64,51 @@ async def check_and_notify():
     for task in tasks:
         tid = task.get("id")
         contenido = task.get("contenido")
-        hora_limite = task.get("hora_limite") # e.g. "16:00:00"
+        hora_limite_str = task.get("hora_limite") # e.g. "16:00:00"
         ultimo_rec = task.get("ultimo_recordatorio") # ISO timestamp
         es_habito = task.get("es_habito")
-        fecha_limite = task.get("fecha_limite") # ISO timestamp
+        fecha_limite = task.get("fecha_limite") # ISO timestamp or YYYY-MM-DD
         dias_semana = task.get("dias_semana") # JSON list [0, 6]
         fecha_fin_habito = task.get("fecha_fin_habito") # YYYY-MM-DD
 
         # Skip if no specific time set
-        if not hora_limite:
+        if not hora_limite_str:
             continue
 
         # Check if already notified TODAY
+        # ultimo_rec might be in UTC or ISO format with offset. 
+        # Safest is to check string prefix YYYY-MM-DD if we assume it was stored in correct TZ,
+        # BUT supabase stores timestamptz in UTC.
+        # So we should parse it.
         already_notified_today = False
         if ultimo_rec:
-            # Check if ultimo_rec date part is same as today
-            last_notif_date = ultimo_rec.split("T")[0]
-            if last_notif_date == today_str:
-                already_notified_today = True
-        
+            try:
+                # Parse ultimo_recordatorio to datetime
+                last_rec_dt = datetime.fromisoformat(ultimo_rec)
+                # Convert to USER TZ to check the day
+                if last_rec_dt.tzinfo is None:
+                     # Assume UTC if naive, though supabase usually sends offset
+                     last_rec_dt = last_rec_dt.replace(tzinfo=ZoneInfo("UTC"))
+                
+                last_rec_local = last_rec_dt.astimezone(user_tz)
+                if last_rec_local.strftime("%Y-%m-%d") == today_str:
+                    already_notified_today = True
+            except Exception as e:
+                logging.warning(f"Error parsing ultimo_recordatorio '{ultimo_rec}': {e}")
+                # Fallback to simple string check if parsing fails
+                if today_str in ultimo_rec:
+                    already_notified_today = True
+
         if already_notified_today:
             continue
 
-        # Check Eligibility
+        # Check Eligibility (Habit vs Deadline)
         should_notify = False
         
         # Scenario A: Habit
         if es_habito:
-             # 1. Check End Date
              if fecha_fin_habito and today_str > fecha_fin_habito:
-                 should_notify = False # Expired habit
-             
-             # 2. Check Days of Week
+                 should_notify = False # Expired
              elif dias_semana and isinstance(dias_semana, list) and len(dias_semana) > 0:
                  # Python weekday: Mon=0, Sun=6
                  current_weekday = now.weekday()
@@ -111,32 +116,55 @@ async def check_and_notify():
                      should_notify = True
                  else:
                      should_notify = False
-             
-             # 3. Legacy/Default: Daily if no days specified
              else:
-                 should_notify = True
+                 should_notify = True # Daily
         
         # Scenario B: Specific Deadline Today
         elif fecha_limite:
-            deadline_date = fecha_limite.split("T")[0]
-            if deadline_date == today_str:
+            # fecha_limite is usually "YYYY-MM-DD" or ISO.
+            deadline_str = fecha_limite.split("T")[0]
+            if deadline_str == today_str:
                 should_notify = True
         
-        # CHECK TIME
-        # Only notify if NOW >= Limit Time
+        # CHECK TIME WINDOW
         if should_notify:
-            # Simple string comparison works for ISO times "HH:MM:SS"
-            # If now "16:05" >= limit "16:00" -> Notify
-            # We add a buffer? User said "At that time". 
-            # If script runs every 10 mins, sending at 16:05 for 16:00 is fine.
-            # Avoid re-notifying if too much time passed? (Optional: e.g. limit to within 30m)
-            
-            if current_time_str >= hora_limite:
-                msg = f"⏰ **Recordatorio 2ndBrain**\n\nEs hora de: **{contenido}**\n({hora_limite})"
-                await send_telegram_message(msg)
+            try:
+                # Construct Deadline Datetime for TODAY
+                # hora_limite_str is "HH:MM:SS"
+                h, m, s = map(int, hora_limite_str.split(":"))
+                deadline_dt = now.replace(hour=h, minute=m, second=s, microsecond=0)
                 
-                # Update DB to avoid spam
-                supabase.table("tareas").update({"ultimo_recordatorio": now.isoformat()}).eq("id", tid).execute()
+                # Difference: NOW - DEADLINE
+                diff = now - deadline_dt
+                diff_seconds = diff.total_seconds()
+                
+                # Logic:
+                # 1. Too Early: diff < 0 -> Wait
+                # 2. On Time: -60s <= diff <= 120min (7200s) -> Notify (Buffer of 60s early allowed?)
+                #    Actually, user said "at that time". 
+                #    Let's say strict: diff >= 0 and diff <= 7200
+                # 3. Too Late: diff > 7200 -> Mark as "Missed/Done" silently to avoid spam.
+                
+                VALIDITY_WINDOW_SECONDS = 7200 # 2 Hours
+                
+                if 0 <= diff_seconds <= VALIDITY_WINDOW_SECONDS:
+                    msg = f"⏰ **Recordatorio 2ndBrain**\n\nEs hora de: **{contenido}**\n({hora_limite_str})"
+                    await send_telegram_message(msg)
+                    
+                    # Update DB
+                    supabase.table("tareas").update({"ultimo_recordatorio": now.isoformat()}).eq("id", tid).execute()
+                    
+                elif diff_seconds > VALIDITY_WINDOW_SECONDS:
+                    logging.info(f"Task {tid} ('{contenido}') is STALE (Deadline: {hora_limite_str}, Now: {now.strftime('%H:%M')}). Marking skipped.")
+                    # Mark as notified so we don't check again today
+                    supabase.table("tareas").update({"ultimo_recordatorio": now.isoformat()}).eq("id", tid).execute()
+                    
+                else:
+                    # Too early, do nothing
+                    pass
+
+            except Exception as e:
+                logging.error(f"Error checking time for task {tid}: {e}")
 
 async def main_loop():
     logging.info("🚀 Notifier Service Started (Looping every 60s)")
