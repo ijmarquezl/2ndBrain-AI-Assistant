@@ -19,7 +19,7 @@ def main():
     st.sidebar.header("🛠️ Modo")
     modo_seleccionado = st.sidebar.radio(
         "Elige tu interacción:",
-        ["Coach de Tareas", "Monitor Emocional", "Consultar Segundo Cerebro", "Gestor de Tareas"],
+        ["Coach de Tareas", "Monitor Emocional", "Consultar Segundo Cerebro", "Gestor de Tareas", "Gestión de Proyectos"],
         index=0
     )
     
@@ -28,7 +28,8 @@ def main():
         "Coach de Tareas": "tarea",
         "Monitor Emocional": "emocional",
         "Consultar Segundo Cerebro": "consulta",
-        "Gestor de Tareas": "admin"
+        "Gestor de Tareas": "admin",
+        "Gestión de Proyectos": "proyectos"
     }
     modo_interno = mapa_modos[modo_seleccionado]
 
@@ -98,6 +99,11 @@ def main():
         from modulos.admin_tareas import render_admin_tareas
         render_admin_tareas()
         return  # Exit main() to avoid showing chat interface
+
+    if modo_seleccionado == "Gestión de Proyectos":
+        from modulos.gestion_proyectos import render_gestion_proyectos
+        render_gestion_proyectos()
+        return
 
     st.markdown("""
     > *"No es que tengamos poco tiempo, sino que perdemos mucho."* — Séneca
