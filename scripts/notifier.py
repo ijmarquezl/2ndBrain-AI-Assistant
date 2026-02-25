@@ -140,12 +140,12 @@ async def check_and_notify():
                 
                 # Logic:
                 # 1. Too Early: diff < 0 -> Wait
-                # 2. On Time: -60s <= diff <= 120min (7200s) -> Notify (Buffer of 60s early allowed?)
+                # 2. On Time: -60s <= diff <= 5min (300s) -> Notify (Buffer of 60s early allowed?)
                 #    Actually, user said "at that time". 
-                #    Let's say strict: diff >= 0 and diff <= 7200
-                # 3. Too Late: diff > 7200 -> Mark as "Missed/Done" silently to avoid spam.
+                #    Let's say strict: diff >= 0 and diff <= 300
+                # 3. Too Late: diff > 300 -> Mark as "Missed/Done" silently to avoid spam.
                 
-                VALIDITY_WINDOW_SECONDS = 7200 # 2 Hours
+                VALIDITY_WINDOW_SECONDS = 300 # 5 Minutes
                 
                 if 0 <= diff_seconds <= VALIDITY_WINDOW_SECONDS:
                     msg = f"⏰ **Recordatorio 2ndBrain**\n\nEs hora de: **{contenido}**\n({hora_limite_str})"

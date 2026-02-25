@@ -37,4 +37,10 @@ RF4: Contexto de Conocimiento Personalizado
 
 El sistema debe responder consultas y dar consejos utilizando una base de conocimiento restringida a mis temas de interés: Filosofía Estoica, Aikido, y los libros The Achievement Habit, Atomic Habits y Brain Rules.
 
+RF5: Notificaciones Proactivas y Recordatorios (Telegram)
+
+El sistema debe enviar notificaciones al minuto exacto sobre tareas pendientes o hábitos diarios a la cuenta de Telegram del usuario.
+
+Acción: Las notificaciones y tareas de fondo no dependen del estado de la aplicación front-end (Streamlit), sino que corren directamente en la capa de datos de forma Serverless ininterrumpidamente (ej. Supabase Edge Functions y pg_cron).
+
 Siguiente paso: Confirma que has entendido estos requerimientos funcionales y procede a determinar qué información adicional (no funcional) necesitas o qué stack técnico sugieres para cumplir con esto a costo cero.

@@ -50,7 +50,7 @@ Tu cerebro te avisa dónde estés.
 - **IA Generativa**: Groq (Llama 3.3 70B).
 - **Vectores/Embeddings**: HuggingFace (Local) + Supabase (pgvector).
 - **Base de Datos**: Supabase (PostgreSQL).
-- **Backend**: Python (Notificadores asíncronos).
+- **Backend / Tareas en Segundo Plano**: Supabase Edge Functions (TypeScript) + pg_cron.
 
 ---
 
@@ -72,11 +72,13 @@ Tu cerebro te avisa dónde estés.
 3. **Variables de Entorno (.env)**:
    Configura tus claves de API (Groq, Supabase, Telegram).
 
-4. **Ejecutar**:
+4. **Ejecutar App (Streamlit)**:
    ```bash
-   # App
    streamlit run app.py
-   
-   # Notificador (Segundo plano)
-   python scripts/notifier.py
+   ```
+
+5. **Notificador (Supabase Edge Function)**:
+   Las notificaciones viven en la nube. Requiere desplegar la función y el cronjob vía `supabase cli`:
+   ```bash
+   npx supabase functions deploy telegram-notifier --no-verify-jwt --use-api
    ```
